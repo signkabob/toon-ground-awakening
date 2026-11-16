@@ -53,5 +53,22 @@ namespace ToonGround
             action.AddBinding("<Gamepad>/buttonSouth");
             return action;
         }
+
+        public static InputAction Pound()
+        {
+            var action = new InputAction("Pound", InputActionType.Button);
+            action.AddBinding("<Keyboard>/c");
+            action.AddBinding("<Gamepad>/buttonEast");
+            return action;
+        }
+
+        public static InputAction Attack()
+        {
+            var action = new InputAction("Attack", InputActionType.Button);
+            action.AddBinding("<Mouse>/leftButton");
+            action.AddBinding("<Keyboard>/enter");
+            action.AddBinding("<Gamepad>/buttonWest");
+            return action;
+        }
     }
 }
