@@ -5,9 +5,11 @@ using UnityEngine.InputSystem;
 namespace ToonGround
 {
     /// <summary>
-    /// Gear 5 on/off (G on keyboard, right bumper on gamepad). While on, the ground around
-    /// the player turns to rubber and pulses ripples outward, and everything with a collider
-    /// inside the radius becomes rubbery (see <see cref="Rubberized"/>).
+    /// Gear 5 / Soften on/off (G on keyboard, right bumper on gamepad). Turning it on is a hand
+    /// clap: a gold jelly ripple races out to the radius. While on, the ground around the player
+    /// turns to rubber and pulses ripples outward, and everything with a collider inside the
+    /// radius (floors, walls, ramps, props, enemies) becomes rubbery (see <see cref="Rubberized"/>).
+    /// A power meter drains while it is on and refills while it is off.
     /// </summary>
     [DisallowMultipleComponent]
     public class Gear5Aura : MonoBehaviour
@@ -29,11 +31,28 @@ namespace ToonGround
         [Tooltip("Seconds between scans for things inside the radius.")]
         public float scanInterval = 0.15f;
 
+        [Header("Power meter")]
+        [Tooltip("Seconds of Soften from a full meter.")]
+        public float powerDuration = 8f;
+        [Tooltip("Seconds to refill an empty meter while Soften is off.")]
+        public float rechargeDuration = 5f;
+        [Tooltip("Meter needed (0..1) to clap Soften on.")]
+        [Range(0f, 1f)] public float minimumPowerToClap = 0.2f;
+
+        [Header("Clap")]
+        [Tooltip("Seconds for the clap ripple to reach the radius.")]
+        public float clapRippleTime = 0.35f;
+        [Tooltip("Upward kick the clap gives the ground just inside the radius (m/s).")]
+        public float clapWaveStrength = 6f;
+
         [Header("Look")]
-        public Color ringColor = new Color(1f, 1f, 1f, 0.9f);
+        public Color ringColor = new Color(1f, 0.78f, 0.25f, 0.9f);
         public float ringWidth = 0.08f;
 
         public bool IsActive { get; private set; }
+
+        /// <summary>Soften power meter, 0..1.</summary>
+        public float Power { get; private set; } = 1f;
 
         InputAction toggle;
         bool ownsToggle;
@@ -57,7 +76,21 @@ namespace ToonGround
         void Update()
         {
             if (toggle != null && toggle.WasPressedThisFrame())
-                SetActive(!IsActive);
+            {
+                if (IsActive || Power >= minimumPowerToClap)
+                    SetActive(!IsActive);
+            }
+
+            if (IsActive)
+            {
+                Power = Mathf.Max(0f, Power - Time.deltaTime / Mathf.Max(0.01f, powerDuration));
+                if (Power <= 0f)
+                    SetActive(false);
+            }
+            else
+            {
+                Power = Mathf.Min(1f, Power + Time.deltaTime / Mathf.Max(0.01f, rechargeDuration));
+            }
         }
 
         public void SetActive(bool active)
@@ -75,7 +108,10 @@ namespace ToonGround
                 {
                     ground.KeepRubbery(transform.position, radius);
                     ground.AddImpulse(transform.position, 1.5f, -awakeningPunch);
+                    ground.AddRingImpulse(transform.position, radius * 0.6f, 0.8f, clapWaveStrength);
                 }
+                ClapRipple.Spawn(transform.position, radius, clapRippleTime, ringColor);
+                RubberizeNearby();
                 ToonFollowCamera.Shake(0.35f);
             }
 
@@ -173,8 +209,17 @@ namespace ToonGround
         void OnGUI()
         {
             var style = new GUIStyle(GUI.skin.label) { fontSize = 18, fontStyle = FontStyle.Bold };
-            style.normal.textColor = IsActive ? Color.white : new Color(1f, 1f, 1f, 0.6f);
-            GUI.Label(new Rect(16, 12, 480, 30), IsActive ? "GEAR 5: ON  (G / RB to turn off)" : "Gear 5: off  (G / RB to awaken)", style);
+            style.normal.textColor = IsActive ? ringColor : new Color(1f, 1f, 1f, 0.7f);
+            GUI.Label(new Rect(16, 12, 520, 30), IsActive ? "SOFTEN: ON  (G / RB to turn off)" : "Soften: off  (G / RB to clap)", style);
+
+            // Power meter.
+            var back = new Rect(16, 42, 220, 12);
+            GUI.color = new Color(0f, 0f, 0f, 0.5f);
+            GUI.DrawTexture(back, Texture2D.whiteTexture);
+            bool canClap = IsActive || Power >= minimumPowerToClap;
+            GUI.color = canClap ? ringColor : new Color(0.6f, 0.6f, 0.6f, 0.9f);
+            GUI.DrawTexture(new Rect(back.x + 2, back.y + 2, (back.width - 4) * Power, back.height - 4), Texture2D.whiteTexture);
+            GUI.color = Color.white;
         }
 
         void OnDrawGizmosSelected()
